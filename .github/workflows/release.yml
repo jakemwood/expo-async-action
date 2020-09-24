@@ -19,7 +19,6 @@ jobs:
       - uses: EndBug/add-and-commit@v4
         with:
           ref: 'release'
-          force: true
           tag: 'v2'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
