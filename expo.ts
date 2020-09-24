@@ -1,12 +1,12 @@
 // expo.ts
 //
-// Most of these functions were copied directly from the expo-cli
-// project with only minor modifications.
+// Most of these functions are based on information found scattered
+// throughout the expo-cli project.
 //
 // https://github.com/expo/expo-cli/blob/master/packages/expo-cli/src/commands/webhooks.ts
 //
-import { findConfigFile, getConfig } from "@expo/config";
-import { ApiV2, UserManager } from "@expo/xdl";
+
+import axios from "axios";
 
 type WebhookEvent = 'build';
 type Webhook = {
@@ -14,45 +14,48 @@ type Webhook = {
     url: string;
     event: WebhookEvent;
     secret?: string;
-  };
+};
 
-export async function setupAsync(projectRoot: string) {
-  const { exp } = getConfig(projectRoot, { skipSDKVersionRequirement: true });
-  const { slug } = exp;
-  if (!slug) {
-    throw new Error(
-      `expo.slug is not defined in ${findConfigFile(projectRoot).configName}`
-    );
+const XDL_API = 'https://exp.host/--/api/v2/';
+
+const { auth: { sessionSecret }} = require('~/.expo/state.json');
+const xdlApi = axios.create({
+  baseURL: XDL_API,
+  headers: {
+    'expo-session': sessionSecret,
+    'exponent-client': '3.27.7', // we are hard-coding this because this is the client we reverse-engineered.
   }
-  const user = await UserManager.ensureLoggedInAsync();
-  const client = ApiV2.clientForUser(user);
-  const experienceName = `@${exp.owner ? exp.owner : user.username}/${exp.slug}`;
-  try {
-    const projects = await client.getAsync("projects", {
-      experienceName,
-    });
-    if (projects.length === 0) {
-      throw Error(`Project not found: ${experienceName}`);
-    }
-    const project = projects[0];
-    return { experienceName, project, client };
-  } catch (error) {
-    if (error.code === "EXPERIENCE_NOT_FOUND") {
-      throw Error(`Project not found: ${experienceName}`);
-    } else {
-      throw error;
-    }
-  }
+});
+
+async function getProjectId(projectRoot: string) {
+    // First, we will *very unsafely* read the Expo states
+    const { expo: { slug } } = require(`${projectRoot}/app.json`);
+    const { auth: { username, sessionSecret }} = require('~/.expo/state.json');
+
+    const experienceName = `@${username}/${slug}`;
+
+    // Now figure out the ID of our project...
+    const projectIdResponse = await xdlApi.get('projects', { params: { experienceName } });
+    const projectId = projectIdResponse.data.data[0].id;
+
+    return projectId;
 }
 
-export async function listAsync(projectRoot: string): Promise<Webhook[]> {
-  const { project, client } = await setupAsync(projectRoot);
+async function listWebhooks(projectId: string) {
+  const url = `projects/${projectId}/webhooks`;
 
-  return await client.getAsync(`projects/${project.id}/webhooks`);
+  const results = await xdlApi.get<{ data: Webhook[] }>(url);
+
+  return results.data.data;
 }
 
-export async function removeAsync(projectRoot: string, id: string) {
-  const { project, client } = await setupAsync(projectRoot);
+async function _deleteWebhook(projectId: string, url: string) {
+  const webhooks = await listWebhooks(projectId);
+  const webhookId = webhooks.find(wh => wh.url === url).id;
+  await xdlApi.delete(`projects/${projectId}/webhooks/${webhookId}`);
+}
 
-  await client.deleteAsync(`projects/${project.id}/webhooks/${id}`);
+export async function deleteWebhook(url: string) {
+  const projectId = await getProjectId('.');
+  return _deleteWebhook(projectId, url);
 }
