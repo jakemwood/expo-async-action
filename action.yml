@@ -17,11 +17,11 @@ runs:
       run: npm install -g expo-webhooks-json
       shell: bash
     - name: Determine Expo webhook ID
-      run: echo "::set-env name=WEBHOOK_ID::`expo-webhooks-json --url https://us-central1-rvcycle.cloudfunctions.net/publish/?os=${{ github.event.inputs.os }}`"
+      run: echo "::set-env name=WEBHOOK_ID::`expo-webhooks-json --url ${{ inputs.webhook_url }}"
       shell: bash
     - name: Remove webhook from Expo
       run: expo webhooks:remove --id ${WEBHOOK_ID}
       shell: bash
     - name: Upload artifact
-      run: expo upload:${github.event.inputs.os}
+      run: expo upload:${inputs.os}
       shell: bash
