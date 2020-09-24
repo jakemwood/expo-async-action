@@ -5,23 +5,7 @@ inputs:
   webhook_url:
     description: "The complete URL that was used to trigger this action. Usually the complete HTTPS path to your serverless function."
     required: true
-  os:
-    description: "The operating system you are building for. Either ios or android."
-    required: true
 
 runs:
-  using: composite
-
-  steps:
-    - name: Install expo-webhooks-json
-      run: npm install -g expo-webhooks-json
-      shell: bash
-    - name: Determine Expo webhook ID
-      run: echo "::set-env name=WEBHOOK_ID::`expo-webhooks-json --url ${{ inputs.webhook_url }}"
-      shell: bash
-    - name: Remove webhook from Expo
-      run: expo webhooks:remove --id ${WEBHOOK_ID}
-      shell: bash
-    - name: Upload artifact
-      run: expo upload:${inputs.os}
-      shell: bash
+  using: 'node12'
+  main: 'dist/index.js'
